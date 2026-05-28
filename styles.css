@@ -235,14 +235,30 @@ button:focus-visible {
   font-weight: 800;
 }
 
-.primary-button {
+.form-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.primary-button,
+.secondary-button {
   min-height: 62px;
   border: 0;
   border-radius: 8px;
-  background: var(--brand);
-  color: #fff;
   font-size: 1.2rem;
   font-weight: 900;
+}
+
+.primary-button {
+  background: var(--brand);
+  color: #fff;
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
 }
 
 .history-section {
@@ -306,10 +322,26 @@ button:focus-visible {
   color: var(--success);
   font-weight: 900;
   white-space: nowrap;
+  text-align: right;
 }
 
 .history-value.is-negative {
   color: var(--danger);
+}
+
+.history-side {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.history-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.edit-button {
+  color: var(--brand);
 }
 
 .empty-state {

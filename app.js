@@ -9,6 +9,7 @@ const state = {
   activeType: "protege",
   today: todayLocal(),
   entries: loadEntries(),
+  editingId: null,
 };
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -19,6 +20,8 @@ const currency = new Intl.NumberFormat("pt-BR", {
 const amountInput = document.querySelector("#amountInput");
 const noteInput = document.querySelector("#noteInput");
 const form = document.querySelector("#entryForm");
+const submitButton = document.querySelector("#submitButton");
+const cancelEditButton = document.querySelector("#cancelEditButton");
 const toast = document.querySelector("#toast");
 
 purgeOldEntries();
@@ -43,32 +46,56 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  state.entries.unshift({
-    id: crypto.randomUUID(),
-    type: state.activeType,
-    amount,
-    note: noteInput.value.trim(),
-    date: state.today,
-    createdAt: new Date().toISOString(),
-  });
+  const note = noteInput.value.trim();
+
+  const wasEditing = Boolean(state.editingId);
+
+  if (wasEditing) {
+    state.entries = state.entries.map((entry) =>
+      entry.id === state.editingId
+        ? { ...entry, type: state.activeType, amount, note, updatedAt: new Date().toISOString() }
+        : entry,
+    );
+  } else {
+    state.entries.unshift({
+      id: crypto.randomUUID(),
+      type: state.activeType,
+      amount,
+      note,
+      date: state.today,
+      createdAt: new Date().toISOString(),
+    });
+  }
 
   saveEntries();
-  amountInput.value = "";
-  noteInput.value = "";
+  resetForm();
   render();
-  showToast("Lan\u00e7amento feito.");
+  showToast(wasEditing ? "Lan\u00e7amento atualizado." : "Lan\u00e7amento feito.");
   focusAmountInput();
 });
 
 document.querySelector("#historyList").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-delete]");
-  if (!button) return;
+  const deleteButton = event.target.closest("[data-delete]");
+  const editButton = event.target.closest("[data-edit]");
+  if (!deleteButton && !editButton) return;
   refreshDayIfNeeded();
 
-  state.entries = state.entries.filter((entry) => entry.id !== button.dataset.delete);
+  if (editButton) {
+    startEdit(editButton.dataset.edit);
+    return;
+  }
+
+  if (state.editingId === deleteButton.dataset.delete) resetForm();
+  state.entries = state.entries.filter((entry) => entry.id !== deleteButton.dataset.delete);
   saveEntries();
   render();
   showToast("Lan\u00e7amento apagado.");
+});
+
+cancelEditButton.addEventListener("click", () => {
+  resetForm();
+  render();
+  focusAmountInput();
 });
 
 document.querySelector("#clearDayButton").addEventListener("click", () => {
@@ -83,6 +110,7 @@ document.querySelector("#clearDayButton").addEventListener("click", () => {
   if (!ok) return;
 
   const ids = new Set(entries.map((entry) => entry.id));
+  if (state.editingId && ids.has(state.editingId)) resetForm();
   state.entries = state.entries.filter((entry) => !ids.has(entry.id));
   saveEntries();
   render();
@@ -130,6 +158,8 @@ function totalsForSelectedDate() {
 function render() {
   const totals = totalsForSelectedDate();
   const counts = countsForSelectedDate();
+  submitButton.textContent = state.editingId ? "Atualizar" : "Lan\u00e7ar";
+  cancelEditButton.hidden = !state.editingId;
 
   document.querySelectorAll(".category-tab").forEach((button) => {
     const type = button.dataset.type;
@@ -168,9 +198,12 @@ function render() {
             <strong>${time}</strong>
             <span>${activeLabel}${note}</span>
           </div>
-          <div>
+          <div class="history-side">
             <div class="history-value ${isNegative ? "is-negative" : ""}">${sign}${currency.format(entry.amount)}</div>
-            <button class="text-button" type="button" data-delete="${entry.id}" aria-label="Apagar lan\u00e7amento">Apagar</button>
+            <div class="history-actions">
+              <button class="text-button edit-button" type="button" data-edit="${entry.id}" aria-label="Editar lan\u00e7amento">Editar</button>
+              <button class="text-button" type="button" data-delete="${entry.id}" aria-label="Apagar lan\u00e7amento">Apagar</button>
+            </div>
           </div>
         </article>
       `;
@@ -246,6 +279,25 @@ function refreshDayIfNeeded() {
 function focusAmountInput() {
   amountInput.scrollIntoView({ block: "center", behavior: "smooth" });
   requestAnimationFrame(() => amountInput.focus({ preventScroll: true }));
+}
+
+function startEdit(id) {
+  const entry = state.entries.find((item) => item.id === id);
+  if (!entry) return;
+
+  state.editingId = id;
+  state.activeType = entry.type;
+  amountInput.value = entry.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  noteInput.value = entry.note || "";
+  render();
+  showToast("Editando lan\u00e7amento.");
+  focusAmountInput();
+}
+
+function resetForm() {
+  state.editingId = null;
+  amountInput.value = "";
+  noteInput.value = "";
 }
 
 function showToast(message) {
