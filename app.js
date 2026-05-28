@@ -122,6 +122,10 @@ amountInput.addEventListener("blur", () => {
   amountInput.value = value ? value.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "";
 });
 
+amountInput.addEventListener("input", () => {
+  amountInput.value = amountInput.value.replace(/\./g, ",");
+});
+
 amountInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter") return;
 
