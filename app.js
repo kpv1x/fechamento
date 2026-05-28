@@ -94,6 +94,13 @@ amountInput.addEventListener("blur", () => {
   amountInput.value = value ? value.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "";
 });
 
+amountInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+
+  event.preventDefault();
+  form.requestSubmit();
+});
+
 window.addEventListener("focus", () => {
   if (refreshDayIfNeeded()) render();
 });
