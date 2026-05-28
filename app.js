@@ -147,9 +147,6 @@ function render() {
   document.querySelector("#historyTitle").textContent = `${activeLabel} de hoje`;
 
   const finalTotal = totals.entradas + totals.protege - totals.saidas;
-  document.querySelector("#protegeTotal").textContent = currency.format(totals.protege);
-  document.querySelector("#entradasTotal").textContent = currency.format(totals.entradas);
-  document.querySelector("#saidasTotal").textContent = currency.format(totals.saidas);
   document.querySelector("#finalTotal").textContent = currency.format(finalTotal);
 
   const list = document.querySelector("#historyList");

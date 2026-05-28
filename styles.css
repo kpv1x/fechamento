@@ -78,8 +78,6 @@ h2 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
   margin-bottom: 10px;
 }
 
@@ -90,16 +88,6 @@ h2 {
   border-radius: 8px;
   background: var(--surface);
   box-shadow: 0 8px 20px rgba(23, 33, 43, 0.05);
-}
-
-.summary-card:nth-child(2) {
-  background: var(--success-soft);
-  border-color: #b8ead8;
-}
-
-.summary-card:nth-child(4) {
-  background: var(--entry-soft);
-  border-color: #d5c5ff;
 }
 
 .summary-card span {
@@ -117,13 +105,7 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.summary-card.warning {
-  background: var(--danger-soft);
-  border-color: #ffd0bd;
-}
-
 .summary-card.final {
-  grid-column: 1 / -1;
   min-height: 96px;
   padding: 14px;
   background:
@@ -374,14 +356,6 @@ button:focus-visible {
   .app-shell {
     padding-right: 10px;
     padding-left: 10px;
-  }
-
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .summary-card:last-child {
-    grid-column: 1 / -1;
   }
 
   .category-tabs {
