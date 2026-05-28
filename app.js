@@ -28,7 +28,7 @@ document.querySelectorAll(".category-tab").forEach((button) => {
     refreshDayIfNeeded();
     state.activeType = button.dataset.type;
     render();
-    amountInput.focus();
+    focusAmountInput();
   });
 });
 
@@ -57,7 +57,7 @@ form.addEventListener("submit", (event) => {
   noteInput.value = "";
   render();
   showToast("Lan\u00e7amento feito.");
-  amountInput.focus();
+  focusAmountInput();
 });
 
 document.querySelector("#historyList").addEventListener("click", (event) => {
@@ -241,6 +241,11 @@ function refreshDayIfNeeded() {
   saveEntries();
   showToast("Novo dia iniciado.");
   return true;
+}
+
+function focusAmountInput() {
+  amountInput.scrollIntoView({ block: "center", behavior: "smooth" });
+  requestAnimationFrame(() => amountInput.focus({ preventScroll: true }));
 }
 
 function showToast(message) {
