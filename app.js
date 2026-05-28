@@ -200,10 +200,10 @@ function render() {
           </div>
           <div class="history-side">
             <div class="history-value ${isNegative ? "is-negative" : ""}">${sign}${currency.format(entry.amount)}</div>
-            <div class="history-actions">
-              <button class="text-button edit-button" type="button" data-edit="${entry.id}" aria-label="Editar lan\u00e7amento">Editar</button>
-              <button class="text-button" type="button" data-delete="${entry.id}" aria-label="Apagar lan\u00e7amento">Apagar</button>
-            </div>
+          </div>
+          <div class="history-actions">
+            <button class="action-button edit-button" type="button" data-edit="${entry.id}" aria-label="Editar lan\u00e7amento">Editar</button>
+            <button class="action-button delete-button" type="button" data-delete="${entry.id}" aria-label="Apagar lan\u00e7amento">Apagar</button>
           </div>
         </article>
       `;

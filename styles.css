@@ -336,12 +336,26 @@ button:focus-visible {
 }
 
 .history-actions {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.action-button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 900;
 }
 
 .edit-button {
   color: var(--brand);
+}
+
+.delete-button {
+  color: var(--danger);
 }
 
 .empty-state {
