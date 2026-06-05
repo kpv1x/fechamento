@@ -34,6 +34,7 @@ const noteInput = document.querySelector("#noteInput");
 const form = document.querySelector("#entryForm");
 const submitButton = document.querySelector("#submitButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
+const clearDayButton = document.querySelector("#clearDayButton");
 const toast = document.querySelector("#toast");
 const raspaProducts = document.querySelector("#raspaProducts");
 const raspaRedeemInput = document.querySelector("#raspaRedeemInput");
@@ -53,6 +54,7 @@ document.querySelectorAll(".category-tab").forEach((button) => {
   button.addEventListener("click", () => {
     refreshDayIfNeeded();
     state.activeType = button.dataset.type;
+    updateClearDayButton();
     renderFechamento();
     focusAmountInput();
   });
@@ -260,6 +262,7 @@ function renderFechamento() {
   const activeLabel = TYPES[state.activeType];
   document.querySelector("#amountLabel").textContent = `Valor em ${activeLabel}`;
   document.querySelector("#historyTitle").textContent = `${activeLabel} de hoje`;
+  updateClearDayButton();
 
   const finalTotal = totals.entradas + totals.protege - totals.saidas;
   document.querySelector("#finalTotal").textContent = currency.format(finalTotal);
@@ -366,6 +369,10 @@ function countsForSelectedDate() {
     },
     { protege: 0, entradas: 0, saidas: 0 },
   );
+}
+
+function updateClearDayButton() {
+  clearDayButton.textContent = `Limpar ${TYPES[state.activeType]}`;
 }
 
 function startEdit(id) {
