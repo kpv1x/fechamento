@@ -3,19 +3,31 @@ const TYPES = {
   entradas: "Entradas",
   saidas: "Sa\u00eddas",
 };
-const STORAGE_KEY = "fechamento-app-v2";
 
-const state = {
-  activeType: "protege",
-  today: todayLocal(),
-  entries: loadEntries(),
-  editingId: null,
-};
+const RASPA_PRODUCTS = [
+  { id: "trevo", name: "Trevo", price: 2.5 },
+  { id: "roda", name: "Roda", price: 5 },
+  { id: "soOuro", name: "S\u00f3 Ouro", price: 2.5 },
+  { id: "cacaTesouro", name: "Ca\u00e7a ao Tesouro", price: 10 },
+  { id: "vip", name: "VIP", price: 20 },
+];
+
+const FECHAMENTO_STORAGE_KEY = "fechamento-app-v2";
+const RASPA_STORAGE_KEY = "raspadinha-dia-v1";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+const state = {
+  activeView: "fechamento",
+  activeType: "protege",
+  today: todayLocal(),
+  entries: loadArray(FECHAMENTO_STORAGE_KEY),
+  editingId: null,
+  raspa: loadRaspa(),
+};
 
 const amountInput = document.querySelector("#amountInput");
 const noteInput = document.querySelector("#noteInput");
@@ -23,14 +35,25 @@ const form = document.querySelector("#entryForm");
 const submitButton = document.querySelector("#submitButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
 const toast = document.querySelector("#toast");
+const raspaProducts = document.querySelector("#raspaProducts");
+const raspaRedeemInput = document.querySelector("#raspaRedeemInput");
 
 purgeOldEntries();
+render();
+
+document.querySelectorAll(".switch-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    refreshDayIfNeeded();
+    state.activeView = button.dataset.view;
+    render();
+  });
+});
 
 document.querySelectorAll(".category-tab").forEach((button) => {
   button.addEventListener("click", () => {
     refreshDayIfNeeded();
     state.activeType = button.dataset.type;
-    render();
+    renderFechamento();
     focusAmountInput();
   });
 });
@@ -47,7 +70,6 @@ form.addEventListener("submit", (event) => {
   }
 
   const note = noteInput.value.trim();
-
   const wasEditing = Boolean(state.editingId);
 
   if (wasEditing) {
@@ -67,9 +89,9 @@ form.addEventListener("submit", (event) => {
     });
   }
 
-  saveEntries();
+  saveFechamento();
   resetForm();
-  render();
+  renderFechamento();
   showToast(wasEditing ? "Lan\u00e7amento atualizado." : "Lan\u00e7amento feito.");
   focusAmountInput();
 });
@@ -85,16 +107,19 @@ document.querySelector("#historyList").addEventListener("click", (event) => {
     return;
   }
 
+  const ok = confirm("Apagar este lan\u00e7amento?");
+  if (!ok) return;
+
   if (state.editingId === deleteButton.dataset.delete) resetForm();
   state.entries = state.entries.filter((entry) => entry.id !== deleteButton.dataset.delete);
-  saveEntries();
-  render();
+  saveFechamento();
+  renderFechamento();
   showToast("Lan\u00e7amento apagado.");
 });
 
 cancelEditButton.addEventListener("click", () => {
   resetForm();
-  render();
+  renderFechamento();
   focusAmountInput();
 });
 
@@ -112,8 +137,8 @@ document.querySelector("#clearDayButton").addEventListener("click", () => {
   const ids = new Set(entries.map((entry) => entry.id));
   if (state.editingId && ids.has(state.editingId)) resetForm();
   state.entries = state.entries.filter((entry) => !ids.has(entry.id));
-  saveEntries();
-  render();
+  saveFechamento();
+  renderFechamento();
   showToast("Aba limpa.");
 });
 
@@ -133,6 +158,60 @@ amountInput.addEventListener("keydown", (event) => {
   form.requestSubmit();
 });
 
+raspaProducts.addEventListener("input", (event) => {
+  const input = event.target.closest("[data-raspa-field]");
+  if (!input) return;
+  refreshDayIfNeeded();
+
+  input.value = onlyDigits(input.value);
+  const product = input.dataset.product;
+  const field = input.dataset.raspaField;
+  state.raspa.products[product][field] = Number(input.value || 0);
+  saveRaspa();
+  updateRaspaTotals();
+});
+
+raspaProducts.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("[data-raspa-field]");
+  if (!input) return;
+
+  event.preventDefault();
+  focusNextRaspaInput(input);
+});
+
+raspaRedeemInput.addEventListener("input", () => {
+  refreshDayIfNeeded();
+  raspaRedeemInput.value = raspaRedeemInput.value.replace(/\./g, ",");
+  state.raspa.redeem = parseAmount(raspaRedeemInput.value);
+  saveRaspa();
+  updateRaspaTotals();
+});
+
+raspaRedeemInput.addEventListener("blur", () => {
+  raspaRedeemInput.value = state.raspa.redeem
+    ? state.raspa.redeem.toLocaleString("pt-BR", { minimumFractionDigits: 2 })
+    : "";
+});
+
+raspaRedeemInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+
+  event.preventDefault();
+  focusRaspaCashCard();
+});
+
+document.querySelector("#clearRaspaButton").addEventListener("click", () => {
+  refreshDayIfNeeded();
+  const ok = confirm("Limpar a raspadinha de hoje?");
+  if (!ok) return;
+
+  state.raspa = createEmptyRaspa(state.today);
+  saveRaspa();
+  renderRaspadinha();
+  showToast("Raspadinha limpa.");
+});
+
 window.addEventListener("focus", () => {
   if (refreshDayIfNeeded()) render();
 });
@@ -141,25 +220,27 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && refreshDayIfNeeded()) render();
 });
 
-function entriesForSelectedDate() {
-  return state.entries.filter((entry) => entry.date === state.today);
-}
-
-function entriesForActiveTab() {
-  return entriesForSelectedDate().filter((entry) => entry.type === state.activeType);
-}
-
-function totalsForSelectedDate() {
-  return entriesForSelectedDate().reduce(
-    (totals, entry) => {
-      totals[entry.type] += entry.amount;
-      return totals;
-    },
-    { protege: 0, entradas: 0, saidas: 0 },
-  );
-}
-
 function render() {
+  renderViewSwitch();
+  renderFechamento();
+  renderRaspadinha();
+}
+
+function renderViewSwitch() {
+  document.querySelectorAll(".switch-button").forEach((button) => {
+    const isActive = button.dataset.view === state.activeView;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  document.querySelectorAll(".app-view").forEach((view) => {
+    const isActive = view.id === `${state.activeView}View`;
+    view.classList.toggle("is-active", isActive);
+    view.hidden = !isActive;
+  });
+}
+
+function renderFechamento() {
   const totals = totalsForSelectedDate();
   const counts = countsForSelectedDate();
   submitButton.textContent = state.editingId ? "Atualizar" : "Lan\u00e7ar";
@@ -215,6 +296,68 @@ function render() {
     .join("");
 }
 
+function renderRaspadinha() {
+  raspaProducts.innerHTML = RASPA_PRODUCTS.map((product, index) => {
+    const item = state.raspa.products[product.id];
+    return `
+      <article class="raspa-row">
+        <div class="raspa-name">
+          <strong>${product.name}</strong>
+          <span>${currency.format(product.price)}</span>
+        </div>
+        <input class="qty-input" data-raspa-order="${index}" data-product="${product.id}" data-raspa-field="start" type="text" inputmode="numeric" enterkeyhint="next" value="${item.start || ""}" aria-label="${product.name} in\u00edcio do dia" />
+        <input class="qty-input" data-raspa-order="${index + RASPA_PRODUCTS.length}" data-product="${product.id}" data-raspa-field="end" type="text" inputmode="numeric" enterkeyhint="next" value="${item.end || ""}" aria-label="${product.name} final do dia" />
+      </article>
+    `;
+  }).join("");
+
+  raspaRedeemInput.value = state.raspa.redeem
+    ? state.raspa.redeem.toLocaleString("pt-BR", { minimumFractionDigits: 2 })
+    : "";
+  updateRaspaTotals();
+}
+
+function updateRaspaTotals() {
+  const totals = calculateRaspaTotals();
+  document.querySelector("#raspaSalesTotal").textContent = currency.format(totals.sales);
+  document.querySelector("#raspaRedeemTotal").textContent = currency.format(totals.redeem);
+  document.querySelector("#raspaCommissionTotal").textContent = currency.format(totals.commission);
+  document.querySelector("#raspaCashTotal").textContent = currency.format(totals.cash);
+}
+
+function calculateRaspaTotals() {
+  const sales = RASPA_PRODUCTS.reduce((total, product) => {
+    const item = state.raspa.products[product.id];
+    return total + (Number(item.start || 0) - Number(item.end || 0)) * product.price;
+  }, 0);
+  const redeem = Number(state.raspa.redeem || 0);
+
+  return {
+    sales,
+    redeem,
+    cash: sales - redeem,
+    commission: sales * 0.05,
+  };
+}
+
+function entriesForSelectedDate() {
+  return state.entries.filter((entry) => entry.date === state.today);
+}
+
+function entriesForActiveTab() {
+  return entriesForSelectedDate().filter((entry) => entry.type === state.activeType);
+}
+
+function totalsForSelectedDate() {
+  return entriesForSelectedDate().reduce(
+    (totals, entry) => {
+      totals[entry.type] += entry.amount;
+      return totals;
+    },
+    { protege: 0, entradas: 0, saidas: 0 },
+  );
+}
+
 function countsForSelectedDate() {
   return entriesForSelectedDate().reduce(
     (counts, entry) => {
@@ -223,6 +366,25 @@ function countsForSelectedDate() {
     },
     { protege: 0, entradas: 0, saidas: 0 },
   );
+}
+
+function startEdit(id) {
+  const entry = state.entries.find((item) => item.id === id);
+  if (!entry) return;
+
+  state.editingId = id;
+  state.activeType = entry.type;
+  amountInput.value = entry.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  noteInput.value = entry.note || "";
+  renderFechamento();
+  showToast("Editando lan\u00e7amento.");
+  focusAmountInput();
+}
+
+function resetForm() {
+  state.editingId = null;
+  amountInput.value = "";
+  noteInput.value = "";
 }
 
 function parseAmount(value) {
@@ -234,19 +396,60 @@ function parseAmount(value) {
   return Number(normalized);
 }
 
+function onlyDigits(value) {
+  return value.replace(/\D/g, "");
+}
+
 function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function loadEntries() {
+function loadArray(key) {
   try {
-    const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const current = JSON.parse(localStorage.getItem(key));
     return Array.isArray(current) ? current : [];
   } catch {
     return [];
   }
+}
+
+function loadRaspa() {
+  try {
+    const current = JSON.parse(localStorage.getItem(RASPA_STORAGE_KEY));
+    if (current?.date === todayLocal() && current.products) return normalizeRaspa(current);
+  } catch {
+    return createEmptyRaspa(todayLocal());
+  }
+
+  return createEmptyRaspa(todayLocal());
+}
+
+function normalizeRaspa(data) {
+  const empty = createEmptyRaspa(data.date || todayLocal());
+  return {
+    date: data.date,
+    redeem: Number(data.redeem || 0),
+    products: RASPA_PRODUCTS.reduce((products, product) => {
+      products[product.id] = {
+        start: Number(data.products?.[product.id]?.start || 0),
+        end: Number(data.products?.[product.id]?.end || 0),
+      };
+      return products;
+    }, empty.products),
+  };
+}
+
+function createEmptyRaspa(date) {
+  return {
+    date,
+    redeem: 0,
+    products: RASPA_PRODUCTS.reduce((products, product) => {
+      products[product.id] = { start: 0, end: 0 };
+      return products;
+    }, {}),
+  };
 }
 
 function todayLocal() {
@@ -257,16 +460,25 @@ function todayLocal() {
   return `${year}-${month}-${day}`;
 }
 
-function saveEntries() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+function saveFechamento() {
+  localStorage.setItem(FECHAMENTO_STORAGE_KEY, JSON.stringify(state.entries));
+}
+
+function saveRaspa() {
+  localStorage.setItem(RASPA_STORAGE_KEY, JSON.stringify(state.raspa));
 }
 
 function purgeOldEntries() {
   const todaysEntries = state.entries.filter((entry) => entry.date === state.today);
-  if (todaysEntries.length === state.entries.length) return;
+  if (todaysEntries.length !== state.entries.length) {
+    state.entries = todaysEntries;
+    saveFechamento();
+  }
 
-  state.entries = todaysEntries;
-  saveEntries();
+  if (state.raspa.date !== state.today) {
+    state.raspa = createEmptyRaspa(state.today);
+    saveRaspa();
+  }
 }
 
 function refreshDayIfNeeded() {
@@ -275,7 +487,10 @@ function refreshDayIfNeeded() {
 
   state.today = today;
   state.entries = [];
-  saveEntries();
+  state.raspa = createEmptyRaspa(today);
+  resetForm();
+  saveFechamento();
+  saveRaspa();
   showToast("Novo dia iniciado.");
   return true;
 }
@@ -285,23 +500,25 @@ function focusAmountInput() {
   requestAnimationFrame(() => amountInput.focus({ preventScroll: true }));
 }
 
-function startEdit(id) {
-  const entry = state.entries.find((item) => item.id === id);
-  if (!entry) return;
+function focusNextRaspaInput(currentInput) {
+  const orderedInputs = [...document.querySelectorAll("[data-raspa-order]")]
+    .sort((a, b) => Number(a.dataset.raspaOrder) - Number(b.dataset.raspaOrder));
+  const index = orderedInputs.indexOf(currentInput);
+  const nextInput = orderedInputs[index + 1] || raspaRedeemInput;
 
-  state.editingId = id;
-  state.activeType = entry.type;
-  amountInput.value = entry.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  noteInput.value = entry.note || "";
-  render();
-  showToast("Editando lan\u00e7amento.");
-  focusAmountInput();
+  nextInput.scrollIntoView({ block: "center", behavior: "smooth" });
+  requestAnimationFrame(() => nextInput.focus({ preventScroll: true }));
 }
 
-function resetForm() {
-  state.editingId = null;
-  amountInput.value = "";
-  noteInput.value = "";
+function focusRaspaCashCard() {
+  raspaRedeemInput.value = state.raspa.redeem
+    ? state.raspa.redeem.toLocaleString("pt-BR", { minimumFractionDigits: 2 })
+    : "";
+  raspaRedeemInput.blur();
+
+  const cashCard = document.querySelector("#raspaCashCard");
+  cashCard.scrollIntoView({ block: "start", behavior: "smooth" });
+  requestAnimationFrame(() => cashCard.focus({ preventScroll: true }));
 }
 
 function showToast(message) {
@@ -317,5 +534,3 @@ function escapeHtml(value) {
     return map[char];
   });
 }
-
-render();
